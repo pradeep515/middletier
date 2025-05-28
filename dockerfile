@@ -9,5 +9,4 @@ RUN pip install fastapi uvicorn boto3 python-dotenv cryptography python-jose pyt
 COPY . .
 RUN chmod +x start.sh
 EXPOSE 8000
-EXPOSE 8001
 CMD ["/bin/sh", "./start.sh"]
