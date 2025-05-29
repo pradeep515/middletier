@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 # Setup DynamoDB connection
-aws_region = os.getenv('AWS_REGION', 'us-east-1')
-table_name = os.getenv('DYNAMODB_TABLE_NAME', '')
+aws_region = os.getenv('AWS_REGION')
+table_name = os.getenv('DYNAMODB_TABLE_NAME')
 user_id = os.getenv('USER_ID', 'admin')
 password = os.getenv('PASSWORD', 'Admin1234')
-master_api_key = os.getenv('API_KEY', '')
+master_api_key = os.getenv('API_KEY')
 
 endpoint_url = os.getenv('AWS_ENDPOINT_URL', None)
 logger.info(f"aws_region: {aws_region}, table_name: {table_name}")
@@ -39,19 +39,19 @@ config = Config(
     region_name=aws_region,
     endpoint_discovery_enabled=False
 )
+    # config=config,
+    # endpoint_url=endpoint_url,
 
 dynamodb = boto3.resource(
     'dynamodb',
-    config=config,
-    endpoint_url=endpoint_url,
-    aws_access_key_id="test",
-    aws_secret_access_key="test"
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID', ''),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY', '')
 )
 
 table = dynamodb.Table(table_name)
 
 # Token-based authentication setup
-SECRET_KEY = os.getenv('SECRET_KEY', 'your-secret-key')
+SECRET_KEY = os.getenv('SECRET_KEY', '')
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -168,6 +168,7 @@ async def get_items(key: Annotated[str | None, Header()], value: Annotated[str |
         )
         items = response.get('Items', [])
         logger.info(f"Found {len(items)} items")
+        logger.info(items)
         return items
     except Exception as e:
         logger.error(f"Error fetching items: {e}")
@@ -175,15 +176,20 @@ async def get_items(key: Annotated[str | None, Header()], value: Annotated[str |
 
 @app.get("/items/{item_id}")
 #async def get_item(item_id: str, current_user: User = Depends(get_current_active_user), api_key: str = Depends(get_api_key)):
-async def get_item(item_id: str, api_key: str = Depends(get_api_key)):
-    logger.info(f"Fetching item with id = {item_id}")
+async def get_item(item_id: str, key: Annotated[str | None, Header()], value: Annotated[str | None, Header()], api_key: str = Depends(get_api_key)):
+    logger.info(f"Fetching items with partition_key {key} = {value} and sort_key = {item_id}")
     try:
-        response = table.get_item(Key={'id': item_id})
+        key = { 'tenant_id': value, 
+                'medical_record_number': item_id
+            }
+        print(key)
+        response = table.get_item(Key=key)
         item = response.get('Item')
+        logger.info(item)
         if not item:
             logger.warning(f"Item with id {item_id} not found")
             raise HTTPException(status_code=404, detail="Item not found")
-        return item
+        return [item]
     except Exception as e:
         logger.error(f"Error fetching item: {e}")
         raise HTTPException(status_code=500, detail=str(e))
